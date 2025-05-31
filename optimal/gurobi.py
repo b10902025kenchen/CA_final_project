@@ -3,7 +3,7 @@ from gurobipy import GRB
 import pandas as pd
 
 # Load data
-data = pd.read_csv("data.csv", index_col=0)
+data = pd.read_csv("../data/data.csv", index_col=0)
 objects = data.index.tolist()
 I = list(range(len(objects)))
 n = 448
@@ -11,7 +11,7 @@ J = list(range(n))
 L = list(range(1))  # You can change number of telescopes here
 
 # Parameters
-Ti = {i: 30 for i in I}
+Ti = {i: 20 for i in I}
 u = {i: 1.0 for i in I}
 S = 5
 theta_a = 10
@@ -62,15 +62,26 @@ for i in I:
         for l in L:
             model.addConstr(x[i, k, l] == 0)
 
-# Constraint 7 (Revised buffer exclusion)
-for i in I:
-    for j in J:
-        if j + Ti[i] + S - 1 < n:
-            for l in L:
-                for r in I:
-                    if r != i:
-                        for k in range(j, j + Ti[i] + S):
-                            model.addConstr(x[r, k, l] <= 1 - x[i, j, l])
+# # Constraint 7 (Revised buffer exclusion)
+# for i in I:
+#     for j in J:
+#         if j + Ti[i] + S - 1 < n:
+#             for l in L:
+#                 for r in I:
+#                     if r != i:
+#                         for k in range(j, j + Ti[i] + S):
+#                             model.addConstr(x[r, k, l] <= 1 - x[i, j, l])
+# Constraint 7 (更輕量版本：建立時間-望遠鏡使用表)
+for j in J:
+    for l in L:
+        model.addConstr(
+            gp.quicksum(
+                x[i, t, l]
+                for i in I
+                for t in range(max(0, j - Ti[i] - S + 1), min(j + 1, n - Ti[i] + 1))
+                if t + Ti[i] + S > j
+            ) <= 1
+        )
 
 # Optimize
 model.optimize()
@@ -84,10 +95,17 @@ if model.status == GRB.OPTIMAL:
                 "Object": objects[i],
                 "Object_Index": i,
                 "Start_Time": j,
+                "End_Time": j + Ti[i],  # add end_time
                 "Telescope": l
             })
 
-# Export to CSV
+# sort
 result_df = pd.DataFrame(results)
-result_df.to_csv("telescope_schedule_result.csv", index=False)
-print("Result saved to telescope_schedule_result.csv")
+result_df = result_df.sort_values(by="Start_Time").reset_index(drop=True)
+
+
+result_df.to_csv("sol/single_telescope/fix_obs_time_reward.csv", index=False)
+print("Result saved")
+
+print(result_df)
+
