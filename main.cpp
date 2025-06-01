@@ -6,10 +6,12 @@
 #include <limits>
 #include <algorithm>
 #include <random>
+#include <omp.h>
 #include "weight_int_sch.h"
 
 using namespace std;
 
+int threads = 1;
 int MACHINES = 1;
 bool VAR_SCORE = false;
 bool VAR_TIME = false;
@@ -173,7 +175,7 @@ void start_end_setup(const vector<vector<int>>& data, vector<int>& total, vector
 }
 
 int main(int argc, char* argv[]) {
-
+    
     for(int i=1;i<argc;i++)
     {
         string arg = argv[i];
@@ -183,7 +185,10 @@ int main(int argc, char* argv[]) {
             VAR_SCORE = true;
         else if(arg=="-var-time" || arg == "-t")
             VAR_TIME = true;
+        else if(arg=="-thread" || arg=="-mult")
+            threads = min(stoi(argv[++i]),omp_get_max_threads());
     }
+    omp_set_num_threads(threads);
 
     string filename = "./data/data.csv";
     vector<vector<int>> data = read_csv(filename);
@@ -235,13 +240,35 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < STARS; ++i) {
         int star_index = ordered_star[i];
+
         int smallest_sum = numeric_limits<int>::max();
         int selected_interval = -1;
 
-        for (int j = 0; j < INTERVALS; ++j) {
-            if (array[star_index][j] == 1 && column_sum[j] < smallest_sum && capacity[j] < MACHINES) {
-                smallest_sum = column_sum[j];
-                selected_interval = j;
+        #pragma omp parallel                                   \
+        default(none)                                      \
+        shared(array, column_sum, capacity, smallest_sum, selected_interval, MACHINES) \
+        firstprivate(star_index)
+        {
+            int smallest_sum_priv     = std::numeric_limits<int>::max();
+            int selected_interval_priv = -1;
+
+            #pragma omp for
+            for (int j = 0; j < INTERVALS; ++j) {
+                if (array[star_index][j] == 1 &&
+                    capacity[j] < MACHINES &&
+                    column_sum[j] < smallest_sum_priv) {
+
+                    smallest_sum_priv     = column_sum[j];
+                    selected_interval_priv = j;
+                }
+            }
+
+            #pragma omp critical
+            {
+                if (smallest_sum_priv < smallest_sum) {
+                    smallest_sum     = smallest_sum_priv;
+                    selected_interval = selected_interval_priv;
+                }
             }
         }
 
