@@ -8,7 +8,8 @@ objects = data.index.tolist()
 I = list(range(len(objects)))
 n = 448
 J = list(range(n))
-L = list(range(2))  # You can change number of telescopes here
+# Telescope
+L = list(range(2))  
 
 # Parameters
 
@@ -26,20 +27,22 @@ Ti = {i: 20 for i in I}
 # Ti = {i: Ti_values[i] for i in range(len(Ti_values))}
 
 # fix rewards
-u = {i: 1.0 for i in I}
-# u_values = [
-#     3.0, 2.0, 2.0, 4.0, 1.0, 2.0, 2.0, 3.0, 3.0, 3.0, 1.0, 3.0, 1.0, 3.0, 2.0, 2.0, 2.0, 3.0, 3.0, 5.0,
-#     3.0, 1.0, 2.0, 3.0, 2.0, 3.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 4.0, 2.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0,
-#     2.0, 1.0, 2.0, 2.0, 1.0, 2.0, 2.0, 2.0, 3.0, 2.0, 3.0, 2.0, 2.0, 3.0, 4.0, 3.0, 2.0, 3.0, 4.0, 3.0,
-#     4.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 5.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0,
-#     2.0, 2.0, 4.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 2.0, 2.0, 3.0, 4.0, 3.0, 5.0, 5.0, 4.0, 5.0,
-#     5.0, 4.0, 2.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0, 4.0
-# ]
-# u = {i: u_values[i] for i in range(len(u_values))}
+# u = {i: 1.0 for i in I}
+u_values = [
+    3.0, 2.0, 2.0, 4.0, 1.0, 2.0, 2.0, 3.0, 3.0, 3.0, 1.0, 3.0, 1.0, 3.0, 2.0, 2.0, 2.0, 3.0, 3.0, 5.0,
+    3.0, 1.0, 2.0, 3.0, 2.0, 3.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 4.0, 2.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+    2.0, 1.0, 2.0, 2.0, 1.0, 2.0, 2.0, 2.0, 3.0, 2.0, 3.0, 2.0, 2.0, 3.0, 4.0, 3.0, 2.0, 3.0, 4.0, 3.0,
+    4.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 5.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0,
+    2.0, 2.0, 4.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 2.0, 2.0, 3.0, 4.0, 3.0, 5.0, 5.0, 4.0, 5.0,
+    5.0, 4.0, 2.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0, 4.0
+]
+u = {i: u_values[i] for i in range(len(u_values))}
+
+# Cool down
 S = 5
-theta_a = 10
-theta_m = 20
-U = len(I)
+theta_a = 0
+theta_m = 0
+# U = 8000000
 
 # Create visibility parameters
 a = {(i, j): 90 if data.iloc[i]["object_rise"] <= j <= data.iloc[i]["object_set"] else 0 for i in I for j in J}
@@ -94,6 +97,7 @@ for i in I:
 #                     if r != i:
 #                         for k in range(j, j + Ti[i] + S):
 #                             model.addConstr(x[r, k, l] <= 1 - x[i, j, l])
+
 # Constraint 7
 for j in J:
     for l in L:
@@ -108,6 +112,10 @@ for j in J:
 
 # Optimize
 model.optimize()
+print(f"Model status: {model.status}")              # 2 是 optimal
+print(f"Best objective: {model.ObjVal}")
+print(f"Best bound: {model.ObjBound}")
+print(f"MIPGap: {model.MIPGap}")
 
 # Collect results
 results = []
@@ -119,7 +127,8 @@ if model.status == GRB.OPTIMAL:
                 "Object_Index": i,
                 "Start_Time": j,
                 "End_Time": j + Ti[i],
-                "Telescope": l
+                "Telescope": l,
+                "Reward": u[i]
             })
 
 # Create DataFrame and sort
@@ -132,13 +141,13 @@ summary_row = pd.DataFrame([{
     "Object_Index": f"TotalObserved={len(result_df)}",
     "Start_Time": "",
     "End_Time": f"Cool_Down_S={S}",
-    "Telescope": ""
+    "Telescope": f"{len(L)}Telescope(s)"
 }])
 
 # Append and save
 result_df = pd.concat([result_df, summary_row], ignore_index=True)
 
-result_df.to_csv("sol/multiple_telescope/fix_obstime_and_reward.csv", index=False)
+result_df.to_csv("sol/multiple_telescope/fix_obstime_diff_reward.csv", index=False)
 print("Result saved")
 
 print(result_df)
