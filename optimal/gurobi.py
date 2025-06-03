@@ -11,8 +11,31 @@ J = list(range(n))
 L = list(range(1))  # You can change number of telescopes here
 
 # Parameters
-Ti = {i: 20 for i in I}
-u = {i: 1.0 for i in I}
+
+# fix obs time
+# Ti = {i: 20 for i in I} 
+
+Ti_values = [
+    30, 30, 30, 20, 20, 20, 20, 30, 30, 30, 30, 30, 20, 30, 30, 30, 30, 30, 30, 40, 
+    30, 20, 30, 20, 30, 30, 30, 30, 30, 30, 20, 30, 20, 20, 20, 30, 30, 30, 20, 40,
+    20, 20, 40, 20, 20, 30, 20, 20, 30, 30, 30, 30, 30, 30, 30, 30, 30, 40, 40, 30, 
+    40, 30, 30, 30, 40, 30, 30, 30, 30, 30, 30, 40, 40, 40, 30, 60, 30, 30, 30, 30,
+    30, 30, 30, 40, 40, 30, 30, 40, 40, 40, 60, 30, 30, 30, 40, 40, 40, 60, 40, 40,
+    30, 40, 30, 30, 40, 30, 30, 60, 40, 30
+]
+Ti = {i: Ti_values[i] for i in range(len(Ti_values))}
+
+# fix rewards
+# u = {i: 1.0 for i in I}
+u_values = [
+    3.0, 2.0, 2.0, 4.0, 1.0, 2.0, 2.0, 3.0, 3.0, 3.0, 1.0, 3.0, 1.0, 3.0, 2.0, 2.0, 2.0, 3.0, 3.0, 5.0,
+    3.0, 1.0, 2.0, 3.0, 2.0, 3.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 4.0, 2.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+    2.0, 1.0, 2.0, 2.0, 1.0, 2.0, 2.0, 2.0, 3.0, 2.0, 3.0, 2.0, 2.0, 3.0, 4.0, 3.0, 2.0, 3.0, 4.0, 3.0,
+    4.0, 3.0, 3.0, 3.0, 3.0, 2.0, 2.0, 5.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 3.0, 3.0, 3.0, 3.0, 3.0, 2.0,
+    2.0, 2.0, 4.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 2.0, 2.0, 3.0, 4.0, 3.0, 5.0, 5.0, 4.0, 5.0,
+    5.0, 4.0, 2.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0, 4.0
+]
+u = {i: u_values[i] for i in range(len(u_values))}
 S = 5
 theta_a = 10
 theta_m = 20
@@ -71,7 +94,7 @@ for i in I:
 #                     if r != i:
 #                         for k in range(j, j + Ti[i] + S):
 #                             model.addConstr(x[r, k, l] <= 1 - x[i, j, l])
-# Constraint 7 (更輕量版本：建立時間-望遠鏡使用表)
+# Constraint 7
 for j in J:
     for l in L:
         model.addConstr(
@@ -95,16 +118,27 @@ if model.status == GRB.OPTIMAL:
                 "Object": objects[i],
                 "Object_Index": i,
                 "Start_Time": j,
-                "End_Time": j + Ti[i],  # add end_time
+                "End_Time": j + Ti[i],
                 "Telescope": l
             })
 
-# sort
+# Create DataFrame and sort
 result_df = pd.DataFrame(results)
 result_df = result_df.sort_values(by="Start_Time").reset_index(drop=True)
 
+# Add summary row
+summary_row = pd.DataFrame([{
+    "Object": f"OptimalValue={model.ObjVal:.2f}",
+    "Object_Index": f"TotalObserved={len(result_df)}",
+    "Start_Time": "",
+    "End_Time": f"Cool_Down_S={S}",
+    "Telescope": ""
+}])
 
-result_df.to_csv("sol/single_telescope/fix_obs_time_reward.csv", index=False)
+# Append and save
+result_df = pd.concat([result_df, summary_row], ignore_index=True)
+
+result_df.to_csv("sol/single_telescope/diff_obstime_and_reward.csv", index=False)
 print("Result saved")
 
 print(result_df)
