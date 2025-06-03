@@ -8,52 +8,55 @@ double ovlp_area(Star &star, Bin &bin) {
     return max(0.0, x2 - x1) * max(0.0, y2 - y1);
 }
 
-BinGrid::BinGrid(Star_Placement& placement)
+BinGrid::BinGrid(double x0, double x1, double y0, double y1, vector<Star*> stars)
 {
-    
-    _pModules.resize(placement.numStars());
-    for(int i = 0 ; i < placement.numStars() ; i++)
+    cout<<"BinGrid constructor called"<<endl;
+    _pModules.resize(stars.size());
+    for(int i = 0 ; i < stars.size() ; i++)
     {
-        _pModules[i] = &placement.star(i);
+        _pModules[i] = stars[i];
     }
 
-    len_x = (placement.boundryRight() - placement.boundryLeft());
-    len_y = (placement.boundryTop() - placement.boundryBottom());
-    lower_x = placement.boundryLeft();
-    lower_y = placement.boundryBottom();
+    len_x = (x1 - x0);
+    len_y = (y1 - y0);
+    lower_x = x0;
+    lower_y = y0;
 
-    //_num_bins_x = 1<<int(ceil(log2(len_x/avg_width)));
-    //_num_bins_y = 1<<int(ceil(log2(len_y/avg_height)));
+    _num_bins_x = 1<<int(ceil(log2(len_x)));
+    _num_bins_y = 1<<int(ceil(log2(len_y)));
 
-    _num_bins_x = 64;
-    _num_bins_y = 64;
-    _Bin2D.resize(_num_bins_x*4, vector<Bin>(_num_bins_y*4));
+
+    _Bin2D.resize(_num_bins_x, vector<Bin>(_num_bins_y));
 
     
-    _field_cache.resize(placement.numStars(), Point2<double>(0,0));
+    _field_cache.resize(stars.size(), Point2<double>(0,0));
 
     // interface with FFT LIBRARY UPSCALE THE 2D FACTOR INITIALLY
-    density_map = new float*[_num_bins_x*4];
-    for(int i = 0 ; i < _num_bins_x*4 ; i++)
-        density_map[i] = new float[_num_bins_y*4];
-    electroPhi_ = new float*[_num_bins_x*4];
-    for(int i = 0 ; i < _num_bins_x*4 ; i++)
-        electroPhi_[i] = new float[_num_bins_y*4];
-    field_x = new float*[_num_bins_x*4];
-    for(int i = 0 ; i < _num_bins_x*4 ; i++)
-        field_x[i] = new float[_num_bins_y*4];
-    field_y = new float*[_num_bins_x*4];
-    for(int i = 0 ; i < _num_bins_x*4 ; i++)
-        field_y[i] = new float[_num_bins_y*4];
+    density_map = new float*[_num_bins_x];
+    for(int i = 0 ; i < _num_bins_x ; i++)
+        density_map[i] = new float[_num_bins_y];
+    electroPhi_ = new float*[_num_bins_x];
+    for(int i = 0 ; i < _num_bins_x ; i++)
+        electroPhi_[i] = new float[_num_bins_y];
+    field_x = new float*[_num_bins_x];
+    for(int i = 0 ; i < _num_bins_x ; i++)
+        field_x[i] = new float[_num_bins_y];
+    field_y = new float*[_num_bins_x];
+    for(int i = 0 ; i < _num_bins_x ; i++)
+        field_y[i] = new float[_num_bins_y];
+
 
     double die_area = len_x * len_y;
     target_density = 0.9;
+    
 
+    
     initBin2D();
 }
 
 BinGrid::~BinGrid()
 {
+    cout<<"BinGrid destructor called"<<endl;
     for(int i = 0 ; i < _Bin2D.size() ; i++)
     {
         delete[] density_map[i];
@@ -61,10 +64,18 @@ BinGrid::~BinGrid()
         delete[] field_x[i];
         delete[] field_y[i];
     }
-    delete[] density_map;
-    delete[] electroPhi_;
-    delete[] field_x;
-    delete[] field_y;
+    if(_Bin2D.size() > 0)
+    {
+        delete[] density_map;
+        delete[] electroPhi_;
+        delete[] field_x;
+        delete[] field_y;
+    }
+    density_map = nullptr;
+    electroPhi_ = nullptr;
+    field_x = nullptr;
+    field_y = nullptr;
+    cout<<"BinGrid destructor called"<<endl;
 }
 
 void BinGrid::rescale(int x_in, int y_in)
@@ -76,6 +87,12 @@ void BinGrid::rescale(int x_in, int y_in)
 
 void BinGrid::initBin2D()
 {
+
+    for(int i = 0 ; i < _pModules.size() ; i++)
+    {
+        if(_pModules[i]->invalid) continue; // Skip invalid stars
+        maximal_weight = max(maximal_weight, _pModules[i]->score);
+    }
     _cos_table.resize( max(_num_bins_x, _num_bins_y) * 3 / 2, 0 );
     ip_table.resize( round(sqrt(max(_num_bins_x, _num_bins_y))) + 2, 0 );
     
@@ -129,11 +146,20 @@ void BinGrid::updateBin2D() {
             }
         }
     }
+    double overall_area = 0;
     for(int i = 0 ; i < _Bin2D.size() ; i++)
     {
         for(int j = 0 ; j < _Bin2D[0].size() ; j++)
         {
-            _Bin2D[i][j].ovlp_area /= _Bin2D[i][j].area();
+            overall_area += _Bin2D[i][j].area();
+        }
+    }
+    double avg_area = overall_area / (_Bin2D.size() * _Bin2D[0].size());
+    for(int i = 0 ; i < _Bin2D.size() ; i++)
+    {
+        for(int j = 0 ; j < _Bin2D[0].size() ; j++)
+        {
+            _Bin2D[i][j].ovlp_area = (_Bin2D[i][j].ovlp_area - avg_area)/ _Bin2D[i][j].area();
         }
     }
     
@@ -232,7 +258,7 @@ void BinGrid::normalizeBinField()
     double max_field = 1;   //in case that the field is nearly convergent
     float len_coeff_x = 1;
     float len_coeff_y = 1;
-
+    
     if(_Bin2D[0][0].len_x() > _Bin2D[0][0].len_y())
     {
         len_coeff_x = 1;
@@ -249,6 +275,7 @@ void BinGrid::normalizeBinField()
         len_coeff_x /= norm;
         len_coeff_y /= norm;
     }
+    
     #pragma omp parallel for
     for(int i = 0 ; i < _pModules.size() ; i++)
     {

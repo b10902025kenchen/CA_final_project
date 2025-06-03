@@ -1,29 +1,63 @@
-do:
-	g++ -std=c++17 -fopenmp -O3 main.cpp -o main
+# ===============================
+#  Makefile (incremental rebuild)
+# ===============================
 
+# --- Toolchain ---
+CXX       := g++
+CXXFLAGS  := -std=c++17 -fopenmp -O3 -Wall -MMD -MP
+
+# --- Directories ---
+SRC_DIR        := .
+ANALYTICAL_DIR := ./analytical
+
+# --- Targets ---
+MAIN        := main
+ANALYTICAL  := analytical_solver
+
+MAIN_SRC        := $(SRC_DIR)/main.cpp
+ANALYTICAL_SRCS := $(wildcard $(ANALYTICAL_DIR)/*.cpp)
+ANALYTICAL_OBJS := $(ANALYTICAL_SRCS:.cpp=.o)
+
+.PHONY: all clean testcase_gen 000 001 010 011 analytical
+
+
+all: $(MAIN) $(ANALYTICAL)
+
+
+$(MAIN): $(MAIN_SRC)
+	$(CXX) $(CXXFLAGS) $< -o $@
+
+$(ANALYTICAL): $(ANALYTICAL_OBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+
+$(ANALYTICAL_DIR)/%.o: $(ANALYTICAL_DIR)/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# ========== Utility Targets ==========
+
+testcase_gen:
+	python3 testcase_gen.py 10 10 1000 400
+
+# --- Quick run helpers ---
 000:
-	./main 
+	./$(MAIN)
 
 001:
-	./main -m 3
+	./$(MAIN) -m 3
 
 010:
-	./main -s
+	./$(MAIN) -s
 
 011:
-	./main -s -m 5
+	./$(MAIN) -s -m 5
 
-100:
-	./main -t
+# --- Convenience alias ---
+analytical: $(ANALYTICAL)
 
-101:
-	./main -t -m 3
-
-110:
-	./main -t -s
-
-111:
-	./main -t -s -m 3
-
+# ========== Clean ==========
 clean:
-	rm -f ./main
+	rm -f $(MAIN) $(ANALYTICAL) $(ANALYTICAL_DIR)/*.o $(ANALYTICAL_DIR)/*.d
+
+# ========== Auto‑generated dependencies ==========
+-include $(ANALYTICAL_OBJS:.o=.d)

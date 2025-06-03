@@ -16,7 +16,7 @@ struct Star
     pair<int,int> moon_constraints; // [start, end] time constraints
     double score = 1; // score of the star
     bool invalid = false; // if the star is invalid
-    Point2<int> position; // (Machine, interval) space
+    Point2<double> position; // (Machine, interval) space
     double x() const { return position.x; }
     double y() const { return position.y; }
     double width() const { return w; }

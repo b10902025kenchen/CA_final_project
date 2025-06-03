@@ -3,7 +3,6 @@
 #include "Bin.h"
 #include <vector>
 #include <complex>
-#include "placement_base.h"
 #include "Point.h"
 #include "Star.h"
 
@@ -35,8 +34,7 @@ class BinGrid
     vector<float> _cos_table;
     vector<int> ip_table;
 
-    BinGrid(Star_Placement& placement);
-    BinGrid(double x0, double x1, double y0, double y1, int size);
+    BinGrid(double x0, double x1, double y0, double y1, vector<Star*> stars);
     ~BinGrid();
     void rescale(int num_bin_x, int num_bin_y);
     int get_num_bins_x() {return _num_bins_x;}
