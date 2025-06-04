@@ -174,8 +174,14 @@ void start_end_setup(const vector<vector<int>>& data, vector<int>& total, vector
     }
 }
 
+string extension(const string& filename) {
+    size_t dot_pos = filename.find_last_of('.');
+    if (dot_pos == string::npos) return "";
+    return filename.substr(dot_pos + 1);
+}
+
 int main(int argc, char* argv[]) {
-    
+    string filename;
     for(int i=1;i<argc;i++)
     {
         string arg = argv[i];
@@ -187,10 +193,12 @@ int main(int argc, char* argv[]) {
             VAR_TIME = true;
         else if(arg=="-thread" || arg=="-mult")
             threads = min(stoi(argv[++i]),omp_get_max_threads());
+        else if(extension(arg) == "csv") {
+            filename = arg;
+        } 
     }
     omp_set_num_threads(threads);
 
-    string filename = "./data/data.csv";
     vector<vector<int>> data = read_csv(filename);
 
     vector<double> scores = star_rank_setup<double>();
