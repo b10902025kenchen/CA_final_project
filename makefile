@@ -37,7 +37,7 @@ $(ANALYTICAL_DIR)/%.o: $(ANALYTICAL_DIR)/%.cpp
 # ========== Utility Targets ==========
 
 testcase_gen:
-	python3 testcase_gen.py 10 10 1000 400
+	python3 testcase_gen.py 20 10 1000 400
 
 # --- Quick run helpers ---
 000:

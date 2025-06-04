@@ -30,10 +30,10 @@ def generate_star_file(star_num,intervals):
     star_file = "testcase_star.csv"
     with open(star_file, 'w') as f:
         for i in range(star_num):
-            start_time = random.randint(0, intervals - 1)
-            end_time = random.randint(start_time + 1, intervals)
-            moon_start = int(0.3*intervals)
-            moon_end = int(0.7*intervals)
+            start_time = 0
+            end_time = intervals
+            moon_start = 500
+            moon_end = 500
             star = f"M{i},{start_time},{end_time},{moon_start},{moon_end}"
             f.write(f"{star}\n")
     print(f"Star file '{star_file}' generated.")

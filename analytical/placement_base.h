@@ -26,15 +26,7 @@ class Star_Placement
         double boundryRight() const { return intervals; } 
         double boundryTop() const { return machines; } 
         double boundryBottom() const { return 0; } 
-        void output_graph(const string& filename) const {
-            ofstream file(filename);
-            double factor = double(intervals) / double(machines) / 1.6; // Scale factor for Y-axis
-            for (const auto& star : stars) {
-                if(star.invalid) continue; // Skip invalid stars
-                file << star.name << " " <<  star.x() << " " << factor*star.y() <<" "<<( star.x() + star.width()) << " "<<factor<< endl;
-            }
-            file.close();
-        }
+        void output_graph(const string& filename);
     private:
         vector<Star>   stars; // list of stars
         int          machines; // number of machines    (Y-axis)

@@ -16,7 +16,7 @@ void Optimizer::updateGradients()
         //cout<<"Constraint Gradient: (" << constraint_grads[i].x << ", " << constraint_grads[i].y << ")" << endl;
         gradients[i] = (field_grads[i] + constraint_fac * constraint_grads[i])/sqrt(constraint_fac * constraint_fac + 1.0);
     }
-    constraint_fac *= 1.1;
+    constraint_fac *= 1;
     constraint_fac = min(constraint_fac, 10000.0); // Limit the constraint factor to prevent overflow
 }
 
@@ -108,11 +108,11 @@ vector<Point2<double>> Optimizer::constraintGradients()
     return constraint_grads;
 }
 
-Optimizer::Optimizer(double x0, double x1, double y0, double y1, vector<Star*> stars) : bin_grid(x0, x1, y0, y1, stars) {
+Optimizer::Optimizer(double x0, double x1, double y0, double y1, vector<Star*> stars) : bin_grid(x0, x1, y0, y1-1, stars) {
     cout << "Optimizer constructor called" << endl;
     this->stars = stars;
     gradients.resize(stars.size(), Point2<double>(0, 0));
-    step_sizes.resize(stars.size(), 0.5); // Initial step size
+    step_sizes.resize(stars.size(), 0.2); // Initial step size
     bound_x = x1 - x0;
     bound_y = y1 - y0;
 }

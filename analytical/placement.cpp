@@ -162,3 +162,14 @@ Star_Placement::Star_Placement(int argc, char* argv[])
 
     cout<<"Star Placement Initialization Complete."<<endl;
 }
+
+void Star_Placement::output_graph(const string& filename)  {
+    ofstream file(filename);
+    double factor = double(intervals) / double(machines) / 1.6; // Scale factor for Y-axis
+    for (const auto& star : stars) {
+        if(star.invalid) continue; // Skip invalid stars
+        cout<< "Star is in "<<round(star.y())<<" machine"<<endl;
+        file << star.name << " " <<  star.x() << " " << factor*round(star.y()) <<" "<<( star.x() + star.width()) << " "<<factor<< endl;
+    }
+    file.close();
+}

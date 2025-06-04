@@ -23,7 +23,7 @@ BinGrid::BinGrid(double x0, double x1, double y0, double y1, vector<Star*> stars
     lower_y = y0;
 
     _num_bins_x = 1<<int(ceil(log2(len_x)));
-    _num_bins_y = 1<<int(ceil(log2(len_y)));
+    _num_bins_y = 1<<int(ceil(log2(len_y))+1);
 
 
     _Bin2D.resize(_num_bins_x, vector<Bin>(_num_bins_y));
@@ -160,6 +160,7 @@ void BinGrid::updateBin2D() {
         for(int j = 0 ; j < _Bin2D[0].size() ; j++)
         {
             _Bin2D[i][j].ovlp_area = (_Bin2D[i][j].ovlp_area - avg_area)/ _Bin2D[i][j].area();
+            if(_Bin2D[i][j].ovlp_area < 0.5) _Bin2D[i][j].ovlp_area -= 1;
         }
     }
     
@@ -296,7 +297,7 @@ void BinGrid::normalizeBinField()
     }
 
     for(int i = 0 ; i < _pModules.size() ; i++)
-        _field_cache[i] /= _pModules[i]->area();    //precondition
+        _field_cache[i] /= _pModules[i]->area()*_pModules[i]->score;    //precondition
     
 }
 
