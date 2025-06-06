@@ -1,7 +1,16 @@
 #include "Star.h"
 #include "optimizer.h"
 
-
+void Optimizer::density_init()
+{
+    vector<Point2<double>> field_grads = bin_grid.getBinField();
+    double max_density = 0.0;
+    for (const auto& grad : field_grads) {
+        max_density = max(max_density, sqrt(grad.x * grad.x + grad.y * grad.y));
+    }
+    density_fac = 1.0 / max_density * bound_x / 25; 
+    constraint_fac = 0.4 * density_fac; 
+}
 
 void Optimizer::updateGradients() 
 {
@@ -15,13 +24,17 @@ void Optimizer::updateGradients()
         //cout<<"Star: " << star->name << " Position: (" << star->position.x << ", " << star->position.y << ")" << endl;
         //cout<<"Field Gradient: (" << field_grads[i].x << ", " << field_grads[i].y << ")" << endl;
         //cout<<"Constraint Gradient: (" << constraint_grads[i].x << ", " << constraint_grads[i].y << ")" << endl;
-        gradients[i] = density_fac * field_grads[i];
+        gradients[i] = Point2<double>(0, 0);
+        if(use_density)
+        {
+            gradients[i] = density_fac * field_grads[i];
+        }
         if(use_constraint)
-            gradients[i] = (gradients[i] + star->score/max_charge_density * constraint_fac * constraint_grads[i])/sqrt(constraint_fac * constraint_fac + 1.0);
+            gradients[i] = (gradients[i] + star->score/max_charge_density * constraint_fac * constraint_grads[i])/sqrt(constraint_fac*constraint_fac + density_fac*density_fac);
         
     }
     
-    constraint_fac = min(constraint_fac, 10000.0); // Limit the constraint factor to prevent overflow
+    constraint_fac = min(constraint_fac, 100.0*density_fac); // Limit the constraint factor to prevent overflow
 }
 
 
@@ -102,14 +115,13 @@ double soft_plus_gradient(double x)
     return 1 / (1 + exp(-x));
 }
 
-double overlap1d(double a_start, double a_end, double b_start, double b_end) 
-{
-    return max(0.0, min(a_end, b_end) - max(a_start, b_start));
-}
+
 
 Point2<double> interval_gradient(const Star& star) 
 {
     double machine_gradient = 0.005*(star.position.y - round(star.position.y)); 
+
+    
     double constraint_gradient = 0;
     if(star.invalid) return Point2<double>(0, 0);
 
@@ -122,20 +134,17 @@ Point2<double> interval_gradient(const Star& star)
         constraint_gradient +=1;
     }
 
-    double moon_interval_center = (star.moon_constraints.first + star.moon_constraints.second) / 2.0;   
-    double left_interval = star.observe_constraints.second - star.moon_constraints.second;
-    double left_center = star.observe_constraints.second/2 + star.moon_constraints.second/2;
-    double right_interval = star.moon_constraints.first - star.observe_constraints.first;
-    double right_center = star.moon_constraints.first/2 + star.observe_constraints.first/2;
+    double moon_interval_center = (star.moon_constraints.first + star.moon_constraints.second) / 2.0;  
 
-    if(star.position.x + star.width()/2 < moon_interval_center) 
+    if(star.position.x > star.moon_constraints.first && star.position.x < moon_interval_center) 
     {
         constraint_gradient+=1;
     } 
-    else 
+    else if(star.position.x + star.width() < star.moon_constraints.second && star.position.x + star.width() > moon_interval_center) 
     {
         constraint_gradient-=1;
     }
+
     
     return Point2<double>(constraint_gradient, machine_gradient); 
 }
@@ -147,7 +156,7 @@ vector<Point2<double>> Optimizer::constraintGradients()
     {
         Star* star = stars[i];
         if (star->invalid) continue;
-        constraint_grads[i] = interval_gradient(*star);
+        constraint_grads[i] = bound_x/25.0 * interval_gradient(*star);
         // Add other constraints as needed
     }
     return constraint_grads;

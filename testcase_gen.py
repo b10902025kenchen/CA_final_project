@@ -11,7 +11,7 @@ def generate_para_file(machine_num, switch_val,intervals):
     print(f"Parameter file '{para_file}' generated.")
 
 def generate_score_file(star_num):
-    score_file = "testcase_score.txt"
+    score_file = "testcase_score.txt" 
     with open(score_file, 'w') as f:
         for i in range(star_num):
             score = random.randint(1, 10)
@@ -33,12 +33,12 @@ def generate_star_file(star_num,intervals):
         for i in range(star_num):
             num1 = random.randint(0, intervals)
             num2 = random.randint(0, intervals)
-            start_time = 0.2 * intervals
-            end_time = 0.8 * intervals
+            start_time = min(num1, num2)
+            end_time = max(num1, num2)
             num1 = random.randint(0, intervals)
             num2 = random.randint(0, intervals)
-            moon_start = 0.4 * intervals
-            moon_end = 0.6 * intervals
+            moon_start = min(num1, num2)
+            moon_end = max(num1, num2)
             star = f"M{i},{start_time},{end_time},{moon_start},{moon_end}"
             f.write(f"{star}\n")
     print(f"Star file '{star_file}' generated.")

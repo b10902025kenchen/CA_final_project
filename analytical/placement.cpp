@@ -11,40 +11,63 @@ void Star_Placement::global_placement()
     //normal distribution for initial positions
     mt19937 rng(1);
     normal_distribution<double> dist_x(intervals / 2, intervals / 20);
-    normal_distribution<double> dist_y(machines / 2, 1.0);
+    normal_distribution<double> dist_y(machines / 2, double(machines) / 6.0);
     int invalid_count = 0;
     for(auto& star : stars)
     {
         invalid_count += star.invalid;
         if(star.invalid) continue; // Skip invalid stars
-        star.position = Point2<double>(dist_x(rng),dist_y(rng)); // Reset position for global placement
+        star.position = Point2<double>(dist_x(rng),machines / 2); // Reset position for global placement
         restrict_star_region(&star, intervals, machines); 
     }
-
+    optimizer->density_init(); 
     cout<<"Global Placement..."<<endl;
     // Call optimizer to perform global placement
     int plot_cnt = 0; 
+
+    
     optimizer->setUseConstraint(true);   
-    for(int i = 0 ; i < 100 ; i++)
+    for(int i = 0 ; i < 800 ; i++)
     {
-        if(i%(4) == 0)
+        if(i%(8) == 0)
         {
-            output_graph("electrostatic method");
+            output_graph("initial placement");
         }
         optimizer->updateGradients();
         optimizer->updatePositions();
-        optimizer->update_constraint_fac();
-        
+        for(auto& star : stars)
+            star.position.y = machines / 2; // Reset position for global placement
+    }
+
+    for(auto& star : stars)
+    {
+        if(star.invalid) continue; // Skip invalid stars
+        star.position.y = dist_y(rng); // Reset position for global placement
+        restrict_star_region(&star, intervals, machines); 
+        break;
+    }
+
+    optimizer->setUseConstraint(true);   
+    optimizer->setUseDensity(true); 
+    for(int i = 0 ; i < 400 ; i++)
+    {
+        if(i%(8) == 0)
+        {
+            output_graph("electrostatic method");
+            optimizer->update_constraint_fac();
+        }
+        optimizer->updateGradients();
+        optimizer->updatePositions();
     }
 
     
     optimizer->set_step_size_bound(boundryRight()/20.0, boundryTop()/(2.0*machines)); // Set fixed step size for constraint optimization
-    for(int i = 0 ; i < 1000 ; i++)
+    for(int i = 0 ; i < 800 ; i++)
     {
         optimizer->updateGradients();
         optimizer->updatePositions();
         optimizer->update_constraint_fac();
-        if(i%(4) == 0)
+        if(i%(10) == 0)
         {
             output_graph("adding constraint gradient");
         }
@@ -188,6 +211,12 @@ Star_Placement::Star_Placement(int argc, char* argv[])
         {
             star.moon_constraints.first = star.observe_constraints.first;
         }
+
+        if(star.moon_constraints.second <= star.moon_constraints.first)
+        {
+            star.moon_constraints.second = -1; 
+            star.moon_constraints.first = -1; // Mark as invalid if moon constraints are invalid
+        }
         if(star.moon_constraints.first == star.observe_constraints.first\
             && star.moon_constraints.second == star.observe_constraints.second)
         {
@@ -225,7 +254,7 @@ void plotBoxPLT(ofstream &stream, double x1, double y1, double x2, double y2) {
 void Star_Placement::output_graph(const string& outfilename) {
     ofstream outfile(string("./plot/") + to_string(plot_cnt++), ios::out);
     
-    outfile<<"set terminal pngcairo enhanced size 640,480"<<endl; 
+    outfile<<"set terminal pngcairo enhanced size 480,360"<<endl; 
     outfile<<"set output \'"<<to_string(plot_cnt)<<".png\'"<<endl;
 
     outfile << " " << endl;
@@ -244,7 +273,7 @@ void Star_Placement::output_graph(const string& outfilename) {
     for (size_t i = 0; i < numStars(); ++i) {
         Star &module = stars[i];
         if(module.invalid) continue; // Skip invalid stars
-        plotBoxPLT(outfile, module.x(), module.y()*10+1, module.x() + module.width(), (module.y() + module.height())*10-1);
+        plotBoxPLT(outfile, module.x(), module.y()*10+1, module.x() + module.width() - switch_time, (module.y() + module.height())*10-1);
     }
     outfile << "EOF" << endl;
     outfile << "unset output" << endl;
@@ -289,54 +318,89 @@ double ovlp(const Star& a, const Star& b) {
     return x_overlap * y_overlap;
 }
 
-std::vector<int> Star_Placement::WIS_single_row(std::vector<Task>& t, double& best)
+std::vector<int> Star_Placement::WIS_single_row(std::vector<Star*>& t, double& best)
 {
     if (t.empty()) { best = 0.0; return {}; }
 
 
     std::sort(t.begin(), t.end(),
-              [&](const Task& a, const Task& b){ return stars[a.idx].charge_density() > stars[b.idx].charge_density(); });
+              [&](const Star* a, const Star* b){ 
+                if (int(a->x()) < int(b->x())) return true;
+                if (int(a->x()) > int(b->x())) return false;
+                return a->score / a->area() > b->score / b->area();
+            });
+    list<Star*> chosen_tasks;
+    vector<int> chose_tasks_idx(t.size(), 0);
 
-    list<int> chosen_tasks;
-    chosen_tasks.push_back(t[0].idx); 
-    for(int i = 1; i < t.size(); ++i) {
-        bool conflict = false;
-        for(int j : chosen_tasks) {
-            if(ovlp(stars[t[i].idx], stars[j]) > 0) {
-                conflict = true;
-                break;
-            }
-        }
-        if(!conflict) {
-            chosen_tasks.push_back(t[i].idx);
-        }
-    }
     best = 0.0;
-    for(int idx : chosen_tasks) {
-        best += stars[idx].score; // Sum up the scores of the chosen stars
+    chosen_tasks.push_back(t[0]); 
+    int current_endtime = t[0]->x() + t[0]->w; 
+    for(int i = 1; i < t.size(); ++i) {
+        if(t[i]->x() >= current_endtime) {
+            chosen_tasks.push_back(t[i]);
+            int new_loc = max(current_endtime, t[i]->observe_constraints.first);
+            if(t[i]->x() > t[i]->moon_constraints.second) 
+                new_loc = max(new_loc, t[i]->moon_constraints.second);
+            if(new_loc + t[i]->width() > t[i]->observe_constraints.second) continue; // Skip if star exceeds observe constraints
+            if(new_loc + t[i]->width() > t[i]->moon_constraints.first && new_loc < t[i]->moon_constraints.first) continue; 
+            t[i]->position.x = new_loc;
+            current_endtime = t[i]->x() + t[i]->w; // Update end time
+            best += t[i]->score; // Update score
+            chose_tasks_idx[i] = 1; // Mark this task as chosen
+        } 
+    }
+    
+    vector<Star*> left_stars;
+    left_stars.reserve(t.size());
+    for(int i = 0; i < t.size(); ++i) {
+        if(chose_tasks_idx[i] == 0) {
+            left_stars.push_back(t[i]); // Collect unchosen stars
+        }
     }
 
-    return vector<int>(chosen_tasks.begin(), chosen_tasks.end());
+    list<pair<int, int>> intervals;
+    for (auto it = chosen_tasks.begin(); it != chosen_tasks.end(); ++it) {
+        auto curr = it;
+        if ((*curr)->invalid) continue;    
+
+        auto next = std::next(curr);
+        if (next == chosen_tasks.end()) break;   
+        if ((*next)->invalid) continue;     
+
+        int start = (*curr)->position.x + (*curr)->width();
+        int end   = (*next)->position.x;
+        intervals.emplace_back(start, end);
+    }
+
+    sort(left_stars.begin(), left_stars.end(), [](const Star* a, const Star* b) {
+        return a->score / a->area() > b->score / b->area();
+    });
+    
+
+    
+    
+    vector<int> chosen_indices;
+    for(auto& star : chosen_tasks) {
+        if(star->invalid) continue; // Skip invalid stars
+        chosen_indices.push_back(star - &stars[0]); // Get index of the star in the original vector
+    }
+    return chosen_indices;
 }
 
 void Star_Placement::legalization() {
     round();
     set_load();
-    vector<vector<Task>> tasks;
+    vector<vector<Star*>> tasks;
     tasks.resize(machines);
-    output_graph("rounding");
+    
     for(int i = 0; i < machines; ++i) {
         tasks[i].reserve(machines_load[i].size());
         for(auto& star : machines_load[i]) {
             star->invalid = !inside_interval(*star); 
             if(star->invalid) continue; // Skip invalid stars
-            Task task;
-            task.start = star->observe_constraints.first;
-            task.end = star->observe_constraints.second;
-            task.score = star->score;
-            task.idx = star - &stars[0]; // Get index of the star in the stars vector
-            tasks[i].push_back(task);
+            tasks[i].push_back(star);
         }
+        output_graph("rounding");
     }
 
     for(int i = 0 ; i < stars.size() ; i++)
@@ -346,20 +410,17 @@ void Star_Placement::legalization() {
         cout<<"Position: ("<<stars[i].x()<<", "<<stars[i].y()<<")"<<endl;
         cout<<"Observe Constraints: ("<<stars[i].observe_constraints.first<<", "<<stars[i].observe_constraints.second<<")"<<endl;
         cout<<"Moon Constraints: ("<<stars[i].moon_constraints.first<<", "<<stars[i].moon_constraints.second<<")"<<endl;
+        if(i% (stars.size()/10) == 0)
+            output_graph("remove illegal schedule");
     }
-    output_graph("remove illegal schedule");
+    
+    
     vector<vector<int>> chosens;
     chosens.resize(machines);
     double overall_score = 0.0;
     for(int i = 0; i < machines; ++i) {
         double score = 0.0;
         chosens[i] = WIS_single_row(tasks[i],score);
-        cout << "Machine " << i << " score: " << score << endl;
-        overall_score += score;
-    }
-
-    cout<< "Overall score after WIS: " << overall_score << endl;
-    for(int i = 0 ; i < machines; ++i) {
         for(auto& star : machines_load[i]) {
             star->invalid = true; // Mark all stars as invalid first
         }
@@ -368,7 +429,13 @@ void Star_Placement::legalization() {
                 stars[idx].invalid = false; // Mark chosen stars as valid
             }
         }
+        output_graph("legalization");
+        cout << "Machine " << i << " score: " << score << endl;
+        overall_score += score;
     }
-    output_graph("legalization");
+
+    cout<< "Overall score after WIS: " << overall_score << endl;
+
+    
 
 }

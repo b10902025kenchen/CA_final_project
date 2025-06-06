@@ -43,28 +43,28 @@ testcase_gen:
 
 # --- Quick run helpers ---
 000:
-	./$(MAIN) ./testcase_star.csv
+	./$(MAIN) ./data/data.csv
 
 001:
-	./$(MAIN) -m 5 ./testcase_star.csv
+	./$(MAIN) -m 5 ./data/data.csv
 
 010:
-	./$(MAIN) -s ./testcase_star.csv
+	./$(MAIN) -s ./data/data.csv
 
 011:
-	./$(MAIN) -s -m 5 ./testcase_star.csv
+	./$(MAIN) -s -m 5 ./data/data.csv
 
 100:
-	./$(MAIN) ./testcase_star.csv -t
+	./$(MAIN) ./data/data.csv -t ./baseline_observation.txt
 
 101:
-	./$(MAIN) -m 5 ./testcase_star.csv -t
+	./$(MAIN) -m 5 ./data/data.csv -t ./baseline_observation.txt
 
 110:
-	./$(MAIN) -s ./testcase_star.csv -t
+	./$(MAIN) -s ./data/data.csv -t ./baseline_observation.txt
 
 111:
-	./$(MAIN) -s -m 5 ./testcase_star.csv -t
+	./$(MAIN) -s -m 5 ./data/data.csv -t ./baseline_observation.txt
 
 do_analytical: 
 	./$(ANALYTICAL) ./testcase_star.csv -p ./testcase_para.txt -s ./testcase_score.txt -o ./testcase_observation.txt

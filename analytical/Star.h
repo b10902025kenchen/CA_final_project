@@ -26,7 +26,7 @@ struct Star
 };
 
 void restrict_star_region(Star* star, double bound_x, double bound_y);
-
+double overlap1d(double a_start, double a_end, double b_start, double b_end) ;
 Point2<double> interval_gradient(const Star& star);
 
 

@@ -6,6 +6,7 @@
 #include <limits>
 #include <algorithm>
 #include <random>
+#include <list>
 #include <omp.h>
 #include "weight_int_sch.h"
 
@@ -21,6 +22,8 @@ const int OBSERVATION_TIME = 10;
 const int SWITCH_TIME = 5;
 const int TOTAL_TIME = OBSERVATION_TIME + SWITCH_TIME;
 const int INTERVALS = RANGE / TOTAL_TIME;
+
+string observation_file;
 vector<double> observation = {
     30, 30, 30, 20, 20, 20, 20, 30, 30, 30, 30, 30, 20, 30, 30, 30, 30, 30, 30, 40,
     30, 20, 30, 20, 30, 30, 30, 30, 30, 30, 20, 30, 20, 20, 20, 30, 30, 30, 20, 40,
@@ -190,13 +193,27 @@ int main(int argc, char* argv[]) {
         else if(arg=="var-score" || arg=="-s")
             VAR_SCORE = true;
         else if(arg=="-var-time" || arg == "-t")
+        {
             VAR_TIME = true;
+            observation_file = argv[++i]; // Default observation file
+        }
         else if(arg=="-thread" || arg=="-mult")
             threads = min(stoi(argv[++i]),omp_get_max_threads());
         else if(extension(arg) == "csv") {
             filename = arg;
         } 
     }
+
+    ifstream obs_file(observation_file);
+    list<double> obs_list;
+    double obs;
+    while(obs_file >> obs) {
+        obs_list.push_back(obs);
+        if(obs_file.peek() == ',') obs_file.ignore();
+    }
+    obs_file.close();
+    observation = vector<double>(obs_list.begin(), obs_list.end());
+
     omp_set_num_threads(threads);
 
     vector<vector<int>> data = read_csv(filename);

@@ -82,7 +82,7 @@ double weighted_interval_scheduling(const vector<int>& start_time, const vector<
             if (get<3>(tasks_copy[i]) != -1 && curr_val > prev_dp) {
                 selected_tasks[m].push_back(tasks_copy[i]);
                 // Mark task as used
-                tasks_copy[i] = make_tuple(-1, -1, 0.0, -1);
+                get<3>(tasks_copy[i]) = -1;
                 i = traceback[i];
             } else {
                 i--;

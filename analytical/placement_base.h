@@ -35,7 +35,7 @@ class Star_Placement
     private:
         void set_load();
         void round();
-        std::vector<int> WIS_single_row(vector<Task>& t,double& best);
+        std::vector<int> WIS_single_row(vector<Star*>& t,double& best);
         vector<Star>   stars; // list of stars
         vector<list<Star*>> machines_load;
         int          machines; // number of machines    (Y-axis)

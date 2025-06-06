@@ -19,3 +19,8 @@ void restrict_star_region(Star* star, double bound_x, double bound_y)
         star->position.y = bound_y - star->height(); // Ensure position does not go out of bounds
     }
 }
+
+double overlap1d(double a_start, double a_end, double b_start, double b_end) 
+{
+    return max(0.0, min(a_end, b_end) - max(a_start, b_start));
+}

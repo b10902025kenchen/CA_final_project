@@ -9,13 +9,13 @@ done
 
 
 pngs=$(ls [0-9]*.png | sort -V)   # 找所有 png
+last_png=$(ls [0-9]*.png | sort -V | tail -n 1)
 
-# 先確定有找到
-[ -z "$pngs" ] && { echo "❌ 沒有 PNG 檔可用！"; exit 1; }
+[ -z "$pngs" ] && { echo "no PNG to use"; exit 1; }
 
-convert -delay 10 -loop 0 -layers Optimize $pngs ../movie.gif
-
-echo "✅  已完成 movie.gif"
+convert -delay 10 -layers Optimize $pngs ../movie.gif
 
 
-rm ./*
+echo "movie.gif done"
+
+mv "$last_png" ../legalized.png
