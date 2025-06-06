@@ -8,14 +8,6 @@ void Optimizer::updateGradients()
     vector<Point2<double>> field_grads = bin_grid.getBinField();
     vector<Point2<double>> constraint_grads = constraintGradients();
 
-    double max_charge_density = 0.0;
-    for(int i = 0 ; i < stars.size() ; i++)
-    {
-        Star* star = stars[i];
-        if(star->invalid) continue;
-        max_charge_density = max(max_charge_density, star->charge_density());
-    }
-
     for (int i = 0; i < stars.size(); ++i) 
     {
         Star* star = stars[i];
@@ -23,57 +15,64 @@ void Optimizer::updateGradients()
         //cout<<"Star: " << star->name << " Position: (" << star->position.x << ", " << star->position.y << ")" << endl;
         //cout<<"Field Gradient: (" << field_grads[i].x << ", " << field_grads[i].y << ")" << endl;
         //cout<<"Constraint Gradient: (" << constraint_grads[i].x << ", " << constraint_grads[i].y << ")" << endl;
-        gradients[i] = field_grads[i];
+        gradients[i] = density_fac * field_grads[i];
         if(use_constraint)
             gradients[i] = (gradients[i] + star->score/max_charge_density * constraint_fac * constraint_grads[i])/sqrt(constraint_fac * constraint_fac + 1.0);
         
     }
-    /*
-    cout<<gradients[rand() % gradients.size()].x << " " << gradients[rand() % gradients.size()].y << endl;
-    cout<<"INTERVAL"<<endl;
-    int index = rand() % stars.size();
-    Star* star = stars[index];
-    cout<<"Star: " << star->name << " Position: (" << star->position.x << ", " << star->position.y << ")" << endl;
-    cout<<"Observe Constraints: (" << star->observe_constraints.first << ", " << star->observe_constraints.second << ")" << endl;
-    cout<<"Moon Constraints: (" << star->moon_constraints.first << ", " << star->moon_constraints.second << ")" << endl;
-    cout<<"Gradient: (" << gradients[index].x << ", " << gradients[index].y << ")" << endl;
-    cout<<"Constraint factor: " << constraint_fac << endl;
-    */
+    
     constraint_fac = min(constraint_fac, 10000.0); // Limit the constraint factor to prevent overflow
 }
 
+
+
 void Optimizer::updatePositions() 
 {
+    for(int i = 0; i < stars.size(); ++i) 
+    {
+        Star* star = stars[i];
+        prev_gradients[i] = gradients[i];
+        prev_positions[i] = star->position;
+    }
+
+    step_size_prediction();
+    
+    for(int i = 0 ; i < step_sizes_bound.size(); ++i) {
+        if(gradients[i].x * step_sizes[i].x > step_sizes_bound[i].x) 
+            step_sizes[i].x = step_sizes_bound[i].x / gradients[i].x;
+        if(gradients[i].y * step_sizes[i].y > step_sizes_bound[i].y)
+            step_sizes[i].y = step_sizes_bound[i].y / gradients[i].y;
+    }
+
     for (int i = 0; i < stars.size(); ++i) 
     {
         Star* star = stars[i];
         if (star->invalid) continue;
         Point2<double> grad = gradients[i];
-        double step_size = step_sizes[i];
-        star->position.x -= grad.x * step_size;
-        star->position.y -= grad.y * step_size;
-        if(star->position.x < 0) 
-        {
-            star->position.x = 0; // Ensure position does not go out of bounds
-        }
-        if(star->position.x + star->width() > bound_x)
-        {
-            star->position.x = bound_x - star->width(); // Ensure position does not go out of bounds
-        }
-        if(star->position.y < 0)
-        {
-            star->position.y = 0; // Ensure position does not go out of bounds
-        }
-        if(star->position.y + star->height() > bound_y)
-        {
-            star->position.y = bound_y - star->height(); // Ensure position does not go out of bounds
-        }
-        step_sizes[i] *= 1.01;
-        step_sizes[i] = min(step_sizes[i], 1.0); // Limit the step size to prevent overflow
+        Point2<double> step_size = step_sizes[i];
+        star->position.x -= grad.x * step_size.x;
+        star->position.y -= grad.y * step_size.y;
+        restrict_star_region(star, bound_x, bound_y);
     }
 
-
 }
+
+void Optimizer::step_size_prediction()
+{
+    for(int i = 0 ; i < stars.size(); ++i) 
+    {
+        if(stars[i]->invalid) continue;
+
+        step_sizes[i].x = abs(prev_positions[i].x - stars[i]->position.x) / abs(prev_gradients[i].x - gradients[i].x);
+        step_sizes[i].y = abs(prev_positions[i].y - stars[i]->position.y) / abs(prev_gradients[i].y - gradients[i].y);
+        if(abs(prev_gradients[i].x - gradients[i].x) == 0)
+            step_sizes[i].x = 0.5;
+        if(abs(prev_gradients[i].y - gradients[i].y) == 0)
+            step_sizes[i].y = 0.5;
+        step_sizes[i] *= 0.5;
+    }
+}
+
 
 bool inside_interval(double x, const pair<int, int>& interval) 
 {
@@ -103,20 +102,24 @@ double soft_plus_gradient(double x)
     return 1 / (1 + exp(-x));
 }
 
+double overlap1d(double a_start, double a_end, double b_start, double b_end) 
+{
+    return max(0.0, min(a_end, b_end) - max(a_start, b_start));
+}
+
 Point2<double> interval_gradient(const Star& star) 
 {
+    double machine_gradient = 0.005*(star.position.y - round(star.position.y)); 
+    double constraint_gradient = 0;
     if(star.invalid) return Point2<double>(0, 0);
-    if(inside_interval(star)) 
-    {
-        return Point2<double>(0.0, 0.0); // No movement needed
-    }
+
     if(star.position.x < star.observe_constraints.first) 
     {
-        return Point2<double>(-1.0, 0); // Move right
+        constraint_gradient -=1;
     } 
     else if(star.position.x + star.width() > star.observe_constraints.second) 
     {
-        return Point2<double>(1.0, 0); // Move left
+        constraint_gradient +=1;
     }
 
     double moon_interval_center = (star.moon_constraints.first + star.moon_constraints.second) / 2.0;   
@@ -127,14 +130,14 @@ Point2<double> interval_gradient(const Star& star)
 
     if(star.position.x + star.width()/2 < moon_interval_center) 
     {
-            return Point2<double>(50.0, 0); // Move left
+        constraint_gradient+=1;
     } 
     else 
     {
-            return Point2<double>(-50.0, 0); // Move left
+        constraint_gradient-=1;
     }
     
-    return Point2<double>(0.0, 0); 
+    return Point2<double>(constraint_gradient, machine_gradient); 
 }
 
 vector<Point2<double>> Optimizer::constraintGradients() 
@@ -154,10 +157,21 @@ Optimizer::Optimizer(double x0, double x1, double y0, double y1, vector<Star*> s
     cout << "Optimizer constructor called" << endl;
     this->stars = stars;
     gradients.resize(stars.size(), Point2<double>(0, 0));
-    step_sizes.resize(stars.size(), 0.001); // Initial step size
+    prev_gradients.resize(stars.size(), Point2<double>(0, 0));
+    prev_positions.resize(stars.size(), Point2<double>(0, 0));
+    step_sizes.resize(stars.size(), Point2<double>(0.001,0.001)); // Initial step size
+    step_sizes_bound.resize(stars.size(), Point2<double>((x1-x0)/5.0, (y1-y0)/5.0)); 
     bound_x = x1 - x0;
     bound_y = y1 - y0;
     use_constraint = false; // Default to not using constraints
+
+    max_charge_density = 0.0;
+    for(int i = 0 ; i < stars.size() ; i++)
+    {
+        Star* star = stars[i];
+        if(star->invalid) continue;
+        max_charge_density = max(max_charge_density, star->charge_density());
+    }
 }
 
 void Optimizer::normalize_step_sizes()

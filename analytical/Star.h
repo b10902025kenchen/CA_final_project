@@ -25,6 +25,8 @@ struct Star
     double area() const { return width() * height(); }
 };
 
+void restrict_star_region(Star* star, double bound_x, double bound_y);
+
 Point2<double> interval_gradient(const Star& star);
 
 

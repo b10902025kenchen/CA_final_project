@@ -18,40 +18,35 @@ void Star_Placement::global_placement()
         invalid_count += star.invalid;
         if(star.invalid) continue; // Skip invalid stars
         star.position = Point2<double>(dist_x(rng),dist_y(rng)); // Reset position for global placement
-        if(star.position.x < 0) star.position.x = 0; // Ensure position does not go out of bounds
-        if(star.position.x + star.width() > intervals)
-            star.position.x = intervals - star.width(); // Ensure position does not go out of bounds
-        if(star.position.y < 0) star.position.y = 0; // Ensure position does not go out of bounds
-        if(star.position.y + star.height() > machines)
-            star.position.y = machines - star.height(); // Ensure position does not go out of bounds
-        
+        restrict_star_region(&star, intervals, machines); 
     }
+
     cout<<"Global Placement..."<<endl;
     // Call optimizer to perform global placement
-    
-    for(int i = 0 ; i < stars.size() ; i++)
+    int plot_cnt = 0; 
+    optimizer->setUseConstraint(true);   
+    for(int i = 0 ; i < 100 ; i++)
     {
         if(i%(4) == 0)
         {
-            string graph_filename = "./plot/placement_graph_" + to_string(i) + ".txt";
-            output_graph(graph_filename);
+            output_graph("electrostatic method");
         }
         optimizer->updateGradients();
         optimizer->updatePositions();
-        
+        optimizer->update_constraint_fac();
         
     }
 
-    optimizer->setUseConstraint(true); 
+    
+    optimizer->set_step_size_bound(boundryRight()/20.0, boundryTop()/(2.0*machines)); // Set fixed step size for constraint optimization
     for(int i = 0 ; i < 1000 ; i++)
     {
         optimizer->updateGradients();
         optimizer->updatePositions();
         optimizer->update_constraint_fac();
-        if(i%(stars.size()/5) == 0)
+        if(i%(4) == 0)
         {
-            string graph_filename = "./plot/placement_graph_" + to_string(i+stars.size()) + ".txt";
-            output_graph(graph_filename);
+            output_graph("adding constraint gradient");
         }
     }
     /*
@@ -228,9 +223,13 @@ void plotBoxPLT(ofstream &stream, double x1, double y1, double x2, double y2) {
 }
 
 void Star_Placement::output_graph(const string& outfilename) {
-    ofstream outfile(outfilename.c_str(), ios::out);
+    ofstream outfile(string("./plot/") + to_string(plot_cnt++), ios::out);
+    
+    outfile<<"set terminal pngcairo enhanced size 640,480"<<endl; 
+    outfile<<"set output \'"<<to_string(plot_cnt)<<".png\'"<<endl;
+
     outfile << " " << endl;
-    //outfile << "set title \"wirelength = " << _placement.computeHpwl() << "\"" << endl;
+    outfile << "set title \""<<outfilename<<", frame "<<plot_cnt<<"\"" << endl;
     outfile << "set size ratio 0.78" << endl;
     outfile << "set nokey" << endl
             << endl;
@@ -248,7 +247,7 @@ void Star_Placement::output_graph(const string& outfilename) {
         plotBoxPLT(outfile, module.x(), module.y()*10+1, module.x() + module.width(), (module.y() + module.height())*10-1);
     }
     outfile << "EOF" << endl;
-    outfile << "pause -1 'Press any key to close.'" << endl;
+    outfile << "unset output" << endl;
     outfile.close();
 
 }
@@ -325,7 +324,7 @@ void Star_Placement::legalization() {
     set_load();
     vector<vector<Task>> tasks;
     tasks.resize(machines);
-    output_graph("./plot/rounding.txt");
+    output_graph("rounding");
     for(int i = 0; i < machines; ++i) {
         tasks[i].reserve(machines_load[i].size());
         for(auto& star : machines_load[i]) {
@@ -348,15 +347,18 @@ void Star_Placement::legalization() {
         cout<<"Observe Constraints: ("<<stars[i].observe_constraints.first<<", "<<stars[i].observe_constraints.second<<")"<<endl;
         cout<<"Moon Constraints: ("<<stars[i].moon_constraints.first<<", "<<stars[i].moon_constraints.second<<")"<<endl;
     }
-    output_graph("./plot/remove_outofbound.txt");
+    output_graph("remove illegal schedule");
     vector<vector<int>> chosens;
     chosens.resize(machines);
+    double overall_score = 0.0;
     for(int i = 0; i < machines; ++i) {
         double score = 0.0;
         chosens[i] = WIS_single_row(tasks[i],score);
         cout << "Machine " << i << " score: " << score << endl;
+        overall_score += score;
     }
 
+    cout<< "Overall score after WIS: " << overall_score << endl;
     for(int i = 0 ; i < machines; ++i) {
         for(auto& star : machines_load[i]) {
             star->invalid = true; // Mark all stars as invalid first
@@ -367,6 +369,6 @@ void Star_Placement::legalization() {
             }
         }
     }
-    output_graph("./plot/legalization.txt");
+    output_graph("legalization");
 
 }

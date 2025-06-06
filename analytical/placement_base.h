@@ -42,6 +42,8 @@ class Star_Placement
         int          switch_time; // switch time between stars
         int          intervals; // number of intervals (X-axis)
         Optimizer* optimizer; // optimizer for placement
+
+        int plot_cnt = 0; // plot count for graph output
         
     
 };

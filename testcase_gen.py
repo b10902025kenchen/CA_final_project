@@ -31,10 +31,14 @@ def generate_star_file(star_num,intervals):
     with open(star_file, 'w') as f:
         f.write(",object_rise,object_set,moon_near,moon_leave\n")
         for i in range(star_num):
-            start_time = int(0 * intervals)
-            end_time = int(1 * intervals)
-            moon_start = int(-1)
-            moon_end = int(-1)
+            num1 = random.randint(0, intervals)
+            num2 = random.randint(0, intervals)
+            start_time = 0.2 * intervals
+            end_time = 0.8 * intervals
+            num1 = random.randint(0, intervals)
+            num2 = random.randint(0, intervals)
+            moon_start = 0.4 * intervals
+            moon_end = 0.6 * intervals
             star = f"M{i},{start_time},{end_time},{moon_start},{moon_end}"
             f.write(f"{star}\n")
     print(f"Star file '{star_file}' generated.")

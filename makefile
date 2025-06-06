@@ -18,6 +18,8 @@ MAIN_SRC        := $(SRC_DIR)/main.cpp
 ANALYTICAL_SRCS := $(wildcard $(ANALYTICAL_DIR)/*.cpp)
 ANALYTICAL_OBJS := $(ANALYTICAL_SRCS:.cpp=.o)
 
+PLOT_DIR := ./plot
+
 .PHONY: all clean testcase_gen 000 001 010 011 analytical
 
 
@@ -37,7 +39,7 @@ $(ANALYTICAL_DIR)/%.o: $(ANALYTICAL_DIR)/%.cpp
 # ========== Utility Targets ==========
 
 testcase_gen:
-	python3 testcase_gen.py 20 10 1000 400
+	python3 testcase_gen.py 32 10 1000 1000
 
 # --- Quick run helpers ---
 000:
@@ -64,8 +66,8 @@ testcase_gen:
 111:
 	./$(MAIN) -s -m 5 ./testcase_star.csv -t
 
-# --- Convenience alias ---
-analytical: $(ANALYTICAL)
+do_analytical: 
+	./$(ANALYTICAL) ./testcase_star.csv -p ./testcase_para.txt -s ./testcase_score.txt -o ./testcase_observation.txt
 
 # ========== Clean ==========
 clean:
